@@ -310,7 +310,7 @@ elif solve == 'Normal-Modes':
     # Imprime las frecuencias de los modos normales
     #MDF-COMMENT    supongo que aca elegis el modo que escribis
     #MDF-COMMENT    num_freq = 2
-    max_frec = min(4, autov.shape[1])
+    max_frec = min(8, autov.shape[1])
     print("Saving {:d} first modes...".format(max_frec))
     #MDF-COMMENT    print('Frequency: {}'.format(freq[0:6]))
     print('Frequency: {}'.format(freq[0:max_frec]))
