@@ -65,7 +65,7 @@ else:
     file_name = "mesh"
 
 menu_list=["1D Element (Line)", "2D Element (Triangle)", "3D Element (Tetrahedron)", "Beams"]
-menu = SelectionMenu(menu_list,"Finite Elements 1.0 - Select a mesh option")
+menu = SelectionMenu(menu_list,"Finite Elements 1.1 - Select element type")
 
 menu.show()
 menu.join()
@@ -75,25 +75,28 @@ selection = menu.selected_option
 if selection == 0:
     #DOF_nodes = 1
     ELEM_type = 1
-    menu_list=["1D Solution (1 DOF)", "2D Solution (2 DOF)", "3D Solution (3 DOF)", " - "]
+    menu_list=["1D Solution", "2D Solution", "3D Solution", "--------", "Dynamics"]
 
 elif selection == 1:
     #DOF_nodes = 2
     ELEM_type = 2
-    menu_list=[" - ", "2D Solution (2 DOF)", "3D Solution (3 DOF)", " - "]
+    menu_list=["--------", "2D Solution", "3D Solution", "--------", "Dynamics"]
+
 elif selection == 2:
     ELEM_type = 4
-    menu_list=[" - ", " - ", "3D Solution (3 DOF)", "Normal mode"]
+    menu_list=["--------", "--------", "3D Solution", "Modal Analysis", "Dynamics"]
+
 elif selection == 3:
     #DOF_nodes = 2
-    ELEM_type = 5
-    menu_list=[" - ", "2D Solution (2 DOF)", "3D Solution (3 DOF)", "Normal mode"]
+    ELEM_type = 4
+    menu_list=["--------", "2D Solution", "3D Solution", "Modal Analysis", "Dynamics"]
+
 elif selection == 4:
     exit()
 
 
 #menu_list=["1D Solution (1 DOF)", "2D Solution (2 DOF)", "3D Solution (3 DOF)"]
-menu = SelectionMenu(menu_list,"Finite Elements 1.0 - Select the degree of fredoom per node")
+menu = SelectionMenu(menu_list,"Finite Elements 1.1 - Select the degree of freedom per node")
 
 menu.show()
 menu.join()
@@ -122,8 +125,18 @@ elif selection2 == 3:
         DOF_nodes = 3
     if selection == 3:
         DOF_nodes = 2
-
     solve = 'Normal-Modes'
+
+elif selection2 == 4:
+    
+    if selection == 1:
+        DOF_nodes = 2
+    if selection == 2:
+        DOF_nodes = 3
+    solve = 'dynamics'
+
+elif selection2 == 5:
+    exit()
 
 if solve == 'Stress-Strain':
 ##########################################################################################################
@@ -161,7 +174,6 @@ if solve == 'Stress-Strain':
     boundaries = boundaries.read('nodes_selection_file.dat')
     
     f_elem = fe.finite_elements(nodes=nodes_mat, elements=elem, dof_per_node=DOF_nodes)
-
     if ELEM_type == 5:
         print('Getting beams areas')
         a = f_elem.get_areas(ElementType=1, areas=1e-3)
@@ -341,4 +353,156 @@ elif solve == 'Normal-Modes':
             break
         if answer =='n':
             exit()
+##########################################################################################################
+#                               Dinamica
+##########################################################################################################
+elif solve == 'dynamics':
+    # ElementType == 5 ! ojo que para gmsh son elementos tipo 1
+    file = gmesh.read(file_name)
+    nodes_mat = file.read_nodes()
 
+    if ELEM_type == 5:
+        print('Using element 1 as Beam')
+        elem = file.find_elements(ElementType=1)
+    else:
+        elem = file.find_elements(ElementType=ELEM_type)
+
+    # BST! para los gl empotrados
+    #file.BST_config()
+    #print('Opening Boundaries Selection Tool...')
+    #subprocess.call('./bst')
+    
+    print('Opening pyBST...')
+    print("Please generate boundary condition file!")
+    print()
+    print('physical type, to set boundaries conditions')
+    print('1: line      2: surf     4: volume')
+    PHY_type = input('> ')
+    BST(file_name=file_name, num_of_nodes = len(nodes_mat), elem_type=int(PHY_type))
+    while True:
+        answer = input("Continue? (q to quit)")
+        if answer == 'y':
+            break
+        if answer =='q':
+            exit()
+        else:
+            break
+    print('Reading boundaries file')
+    boundaries = boundaries.read('nodes_selection_file.dat')
+
+    f_elem = fe.finite_elements(nodes=nodes_mat, elements=elem, dof_per_node=DOF_nodes)
+    
+    if ELEM_type == 5:
+        print('Getting beams areas')
+        a = f_elem.get_areas(ElementType=1, areas=1e-3)
+    else:
+        pass
+    
+    physical_lines = file.find_physical_elements(ElementType=int(PHY_type))
+    nodes = boundaries.get_boundaries()
+    r, s = boundaries.get_r_s(nodes, dof_per_node=DOF_nodes)
+
+    print()
+    forces = {}
+    PS = physical_lines[0][0]
+    new_force = input('Forces in Physical Group {}: '.format(physical_lines[0][0]))
+    forces[physical_lines[0][0]] = float(new_force)
+
+    for i in range(1,len(physical_lines)):
+        if physical_lines[i][0] in forces:
+            pass
+        else:
+            new_force = input('Forces in Physical Group {}: '.format(physical_lines[i][0]))
+            forces[physical_lines[i][0]] = float(new_force)
+            PS = physical_lines[i][0]
+    print()
+    print('Physical Group : |Force|')
+    print(forces)
+    print()
+    # matriz de rigidez
+    f_elem = fe.finite_elements(nodes=nodes_mat, elements=elem, dof_per_node=DOF_nodes)
+    a = f_elem.get_areas(ElementType=ELEM_type, areas=1)
+    mat_rig = f_elem.get_stiff_mat(ElementType=ELEM_type)
+    K_glob = f_elem.get_global_mat(ElementType=ELEM_type, matrix_to_assemble=mat_rig)
+    #matriz de masa reducida
+    #np.savetxt('rigidez_global.txt',K_glob,fmt='%.2f')
+    if ELEM_type == 5:
+        red_mass = f_elem.mass_matrix(ElementType=ELEM_type, matrix_type='consistent', density=7850)
+        m_glob = f_elem.get_global_mat(ElementType=ELEM_type, matrix_to_assemble=red_mass)
+
+    if ELEM_type == 4:
+        mass_mat = f_elem.mass_matrix(ElementType=ELEM_type, matrix_type='consistent', density=7850*1e9)
+        m_glob = f_elem.get_global_mat(ElementType=ELEM_type, matrix_to_assemble=mass_mat)
+    
+    if ELEM_type == 2:
+        mass_mat = f_elem.mass_matrix(ElementType=ELEM_type, matrix_type='consistent', density=7850)
+        m_glob = f_elem.get_global_mat(ElementType=ELEM_type, matrix_to_assemble=mass_mat)
+    #condiciones de contorno del problema
+    nodes = boundaries.get_boundaries()
+    r, s = boundaries.get_r_s(nodes, dof_per_node=DOF_nodes)
+   
+   ################################### 
+   # DEFINIR ALGUNOS HIPERPARAMETROS #
+   ###################################
+    steps = 100
+    delta_t = 0.05
+    delta_t2 = delta_t**2
+
+   # Calculos
+    print('solving...')
+    start_time = time.time()
+    F = boundaries.get_stress(nodes_mat, physical_lines, forces, nodes, ElementType=ELEM_type, dof_per_node=DOF_nodes)
+    
+    f = np.zeros([steps, len(F)])
+    a = np.zeros([steps, len(F)])
+    v = np.zeros([steps, len(F)])
+    d = np.zeros([steps, len(F)])
+    for i in range(steps):
+        #genera una fuerza constante en el tiempo
+        f[i] = F.T
+    
+    Minv = np.linalg.inv(m_glob[np.ix_(r, r)])
+    # Calculo de la aceleracion inicial
+    #pdb.set_trace()
+    a[1, r] = np.matmul(Minv, (f[0, r] - np.matmul(K_glob[np.ix_(r,)], d[1])-np.matmul(m_glob[np.ix_(r, s)], d[1, s])))
+
+    #d-1
+    d[0] = d[1] - delta_t*v[1] + 0.5*(delta_t2)*a[1]
+    #d1 en adelante
+    for i in range(2, steps):
+        d[i, r] = np.matmul(Minv, 2*np.matmul(m_glob[np.ix_(r, r)], d[i-1, r])-np.matmul(m_glob[np.ix_(r, r)], d[i-2, r])+
+                  delta_t2*(f[i-2, r]-np.matmul(K_glob[np.ix_(r,)], d[i-2,])-np.matmul(m_glob[np.ix_(r, s)], d[i-2, s])))
+
+    print("Solved in %s seconds" % (time.time() - start_time))
+    print('Done')
+
+    file.clean()
+    print()
+    print('Saving clip...')
+
+    if ELEM_type == 4:
+        file.dynamic_clip_write(
+                d,
+                'Displacement',
+                dof_per_node=DOF_nodes,
+                tags = steps
+                )
+    if ELEM_type == 2:
+        file.dynamic_clip_write(
+                d,
+                'Displacement',
+                dof_per_node=DOF_nodes,
+                tags=steps
+                )
+    while True:
+        answer = input("Open gmsh? (y/n): ")
+        if answer == 'y':
+            if 'Linux' in platform.system():
+                os.system('/usr/local/bin/gmsh -open ./mesh/'+ sys.argv[2])
+            elif 'Darwin' in platform.system():
+                os.system('/Applications/Gmsh.app/Contents/MacOS/gmsh -open ./mesh/'+sys.argv[2])
+            else:
+                subprocess.Popen(gmsh_path + "/gmsh.exe -open ./mesh/"+sys.argv[2])
+            break
+        if answer =='n':
+            exit()

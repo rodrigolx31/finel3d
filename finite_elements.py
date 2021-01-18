@@ -156,7 +156,7 @@ class finite_elements:
             self.stiff_mat = np.array(stiff_matrix)
             self.long = np.array(longitude)
         elif ElementType == 4:
-            E = 210e6
+            E = 210
             nu = 0.3
             D = np.zeros([6, 6])
             D[0,0], D[1,1], D[2,2] = (1 - nu) * np.array([1, 1, 1])
@@ -469,10 +469,24 @@ class finite_elements:
                     matrix.append(mass_mat * self.volume_array[elem] * density / 20)
             
             else:
-                print("can't obtain mass matrix. Change to 'consistent'")
+                print("Can't obtain mass matrix. Change to 'consistent'")
                 exit()
+        elif ElementType == 2:
+            matrix = []
+            if matrix_type == 'consistent':
+                mass_mat = np.array([[2, 0, 1, 0, 1, 0],
+                                     [0, 2, 0, 1, 0, 1],
+                                     [1, 0, 2, 0, 1, 0],
+                                     [0, 1, 0, 2, 0, 1],
+                                     [1, 0, 1, 0, 2, 0],
+                                     [0, 1, 0, 1, 0, 2]])
+
+                for elem in range(len(self.elements)):
+                   
+                    matrix.append(mass_mat * self.areas[elem] * density / 12)
+
         else:
-            print('Element not configured.')
+            print("Can't obtain mass matrix.Element not configured.")
             exit()
 
         np_matrix = np.array(matrix)
