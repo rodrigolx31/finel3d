@@ -13,6 +13,7 @@ from consolemenu.items import *
 import pdb
 import matplotlib.pyplot as plt
 import time
+from alive_progress import alive_bar
 
 
 with open('gmsh_path', 'r') as file:
@@ -334,13 +335,24 @@ elif solve == 'Normal-Modes':
         print('saving mode {:d}'.format(num_freq))
         for i in range(len(r)):
             disp[r[i]] = autov[i, num_freq]
-        
+
         if ELEM_type == 4:
             file.clip_write(
                     disp,
                     'Desplazam. MAX {:d}'.format(num_freq),
                     dof_per_node=DOF_nodes
                     )
+    
+    #Guardar los valores en un archivo para leerlo en dinamica
+    disp_n = np.zeros(DOF_nodes*len(nodes))
+    for i in range(len(r)):
+        disp_n[r[i]] = autov[i, 1] #guarda el modo normal 1 !! cambiar aca      
+    with open('modal_analysis.f3d', 'wb') as stored_data:
+        np.save(stored_data, disp_n)
+        print()
+        print('Numpy array saved! can be used in dynamic analysis.')
+        print()
+####################
     while True:
         answer = input("Open gmsh? (y/n): ")
         if answer == 'y':
@@ -431,7 +443,7 @@ elif solve == 'dynamics':
         m_glob = f_elem.get_global_mat(ElementType=ELEM_type, matrix_to_assemble=red_mass)
 
     if ELEM_type == 4:
-        mass_mat = f_elem.mass_matrix(ElementType=ELEM_type, matrix_type='consistent', density=7850*1e9)
+        mass_mat = f_elem.mass_matrix(ElementType=ELEM_type, matrix_type='consistent', density=7850/1e9)
         m_glob = f_elem.get_global_mat(ElementType=ELEM_type, matrix_to_assemble=mass_mat)
     
     if ELEM_type == 2:
@@ -443,13 +455,14 @@ elif solve == 'dynamics':
    
    ################################### 
    # DEFINIR ALGUNOS HIPERPARAMETROS #
-   ###################################
-    steps = 100
-    delta_t = 0.05
+   ################################### 0.0025
+    steps = 10000
+    delta_t = 1e-4
     delta_t2 = delta_t**2
 
    # Calculos
-    print('solving...')
+    print()
+    print('Solving...')
     start_time = time.time()
     F = boundaries.get_stress(nodes_mat, physical_lines, forces, nodes, ElementType=ELEM_type, dof_per_node=DOF_nodes)
     
@@ -457,25 +470,51 @@ elif solve == 'dynamics':
     a = np.zeros([steps, len(F)])
     v = np.zeros([steps, len(F)])
     d = np.zeros([steps, len(F)])
-    for i in range(steps):
-        #genera una fuerza constante en el tiempo
-        f[i] = F.T
+
+    ####################### Fuerza constante
+    #for i in range(steps):
+    #    f[i, ] = (1)*F.T
+    ####################### Desplazamientos de modos normales de vibracion
     
+    with open('modal_analysis.f3d', 'rb') as stored_data:
+        disp = np.load(stored_data)
+        for i in range(len(F)):
+            d[0,i] = disp[i]
+
+
+    #calculos
     Minv = np.linalg.inv(m_glob[np.ix_(r, r)])
     # Calculo de la aceleracion inicial
+    #a[0, r] = np.matmul(Minv, (f[0, r]-np.matmul(K_glob[np.ix_(r,)], d[0])))
+    a[0, r] = np.matmul(Minv, (f[0, r]-np.matmul(K_glob[np.ix_(r,r)], d[0,r])))
+    #print('a0')
+    #print(a)
+    #Este seria el d-1
+    d_1 = d[0] - delta_t*v[0] + 0.5*(delta_t2)*a[0]
     #pdb.set_trace()
-    a[1, r] = np.matmul(Minv, (f[0, r] - np.matmul(K_glob[np.ix_(r,)], d[1])-np.matmul(m_glob[np.ix_(r, s)], d[1, s])))
-
-    #d-1
-    d[0] = d[1] - delta_t*v[1] + 0.5*(delta_t2)*a[1]
-    #d1 en adelante
-    for i in range(2, steps):
-        d[i, r] = np.matmul(Minv, 2*np.matmul(m_glob[np.ix_(r, r)], d[i-1, r])-np.matmul(m_glob[np.ix_(r, r)], d[i-2, r])+
-                  delta_t2*(f[i-2, r]-np.matmul(K_glob[np.ix_(r,)], d[i-2,])-np.matmul(m_glob[np.ix_(r, s)], d[i-2, s])))
-
+    #d1
+    #d[1, r] = np.matmul(Minv, 2*np.matmul(m_glob[np.ix_(r, r)], d[0, r])-np.matmul(m_glob[np.ix_(r, r)], d_1[r])+
+    #   delta_t2*(f[0, r]-np.matmul(K_glob[np.ix_(r,)], d[0,])-np.matmul(m_glob[np.ix_(r, s)], a[0,s])))
+    
+    #term = delta_t2*f[0, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)], d[0,r]) - np.matmul(m_glob[np.ix_(r, r)], d_1[r])
+    #d[1, r] = np.matmul(Minv,term)
+    
+    print('Calculating dynamic position')
+    with alive_bar(steps, bar = 'filling', spinner = 'dots_reverse') as bar:
+        '''
+        #d2 en adelante
+        for i in range(2, steps):
+            d[i, r] = np.matmul(Minv, 2*np.matmul(m_glob[np.ix_(r, r)], d[i-1, r])-np.matmul(m_glob[np.ix_(r, r)], d[i-2, r])+
+                      delta_t2*(f[i-1, r]-np.matmul(K_glob[np.ix_(r,)], d[i-1,])-np.matmul(m_glob[np.ix_(r, s)], a[i-1, s])))
+            bar()
+        '''
+        for i in range(2, steps):
+            #term = delta_t2*f[i-1, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)], d[i-1,r]) - np.matmul(m_glob[np.ix_(r, r)], d[i-2, r])
+            d[i, r] = np.matmul(Minv,delta_t2*f[i-1, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)], d[i-1,r]) - np.matmul(m_glob[np.ix_(r, r)], d[i-2, r]))
+            bar()
     print("Solved in %s seconds" % (time.time() - start_time))
     print('Done')
-
+    print()
     file.clean()
     print()
     print('Saving clip...')

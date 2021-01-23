@@ -3,6 +3,7 @@ import os
 import numpy as np
 import time
 import pdb
+from alive_progress import alive_bar
 
 class read:
 
@@ -516,58 +517,62 @@ class read:
     def dynamic_clip_write(self, data, data_name, dof_per_node, tags):
 
         nodes = int(data.shape[1]/dof_per_node)
-        for timestamp in range(tags):
-            with open('./mesh/'+self.path, 'a') as file:
-            # Escribe los desplazamientos de cada nodo
-                if dof_per_node == 2:
-                    file.write('\n')
-                    file.write('$NodeData\n')
-                    file.write('1\n')
-                    file.write('"'+data_name+'"')
-                    file.write('\n')
-                    file.write('1\n')
-                    file.write(str(timestamp)+'\n')
-                    file.write('3\n')
-                    file.write(str(timestamp)+'\n')
-                    file.write('3\n')
-                    file.write('{}\n'.format(nodes))
-                    index = 0
-                    for i in range(data.shape[1]):
-                        if i % 2 ==0:
-                            index+=1
-                            file.write(str(index))
-                            file.write(' ')
-                            file.write(str(data[timestamp, i].item()))
-                            file.write(' ')
-                            file.write(str(data[timestamp, i+1].item()))
-                            file.write(' ' + str(0))
-                            file.write('\n')
-                    file.write('$EndNodeData')
+        with alive_bar(tags, bar = 'filling', spinner = 'dots_reverse') as bar:
+            for timestamp in range(tags):
+                with open('./mesh/'+self.path, 'a') as file:
+                # Escribe los desplazamientos de cada nodo
+                    if dof_per_node == 2:
+                        file.write('\n')
+                        file.write('$NodeData\n')
+                        file.write('1\n')
+                        file.write('"'+data_name+'"')
+                        file.write('\n')
+                        file.write('1\n')
+                        file.write(str(timestamp)+'\n')
+                        file.write('3\n')
+                        file.write(str(timestamp)+'\n')
+                        file.write('3\n')
+                        file.write('{}\n'.format(nodes))
+                        index = 0
+                        for i in range(data.shape[1]):
+                            if i % 2 ==0:
+                                index+=1
+                                file.write(str(index))
+                                file.write(' ')
+                                file.write(str(data[timestamp, i].item()))
+                                file.write(' ')
+                                file.write(str(data[timestamp, i+1].item()))
+                                file.write(' ' + str(0))
+                                file.write('\n')
+                        file.write('$EndNodeData')
+                        bar()
 
-                if dof_per_node == 3:
-                    file.write('\n')
-                    file.write('$NodeData\n')
-                    file.write('1\n')
-                    file.write('"'+data_name+'"')
-                    file.write('\n')
-                    file.write('1\n')
-                    file.write(str(timestamp)+'\n')
-                    file.write('3\n')
-                    file.write(str(timestamp)+'\n')
-                    file.write('3\n')
-                    file.write('{}\n'.format(nodes))
-                    index = 0
-                    for i in range(data.shape[1]):
-                        if i % dof_per_node == 0:
-                            index+=1
-                            file.write(str(index))
-                            file.write(' ')
-                            file.write(str(data[timestamp, i].item()))
-                            file.write(' ')
-                            file.write(str(data[timestamp, i+1].item()))
-                            file.write(' ')
-                            file.write(str(data[timestamp, i+2].item()))
-                            file.write('\n')
-                    file.write('$EndNodeData')
+                    if dof_per_node == 3:
+                        file.write('\n')
+                        file.write('$NodeData\n')
+                        file.write('1\n')
+                        file.write('"'+data_name+'"')
+                        file.write('\n')
+                        file.write('1\n')
+                        file.write(str(timestamp)+'\n')
+                        file.write('3\n')
+                        file.write(str(timestamp)+'\n')
+                        file.write('3\n')
+                        file.write('{}\n'.format(nodes))
+                        index = 0
+                        for i in range(data.shape[1]):
+                            if i % dof_per_node == 0:
+                                index+=1
+                                file.write(str(index))
+                                file.write(' ')
+                                file.write(str(data[timestamp, i].item()))
+                                file.write(' ')
+                                file.write(str(data[timestamp, i+1].item()))
+                                file.write(' ')
+                                file.write(str(data[timestamp, i+2].item()))
+                                file.write('\n')
+                        file.write('$EndNodeData')
+                        bar()
+                
 
     
