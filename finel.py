@@ -346,7 +346,7 @@ elif solve == 'Normal-Modes':
     #Guardar los valores en un archivo para leerlo en dinamica
     disp_n = np.zeros(DOF_nodes*len(nodes))
     for i in range(len(r)):
-        disp_n[r[i]] = autov[i, 1] #guarda el modo normal 1 !! cambiar aca      
+        disp_n[r[i]] = autov[i, 0] #guarda el modo normal 0 !! cambiar aca      
     with open('modal_analysis.f3d', 'wb') as stored_data:
         np.save(stored_data, disp_n)
         print()
@@ -456,8 +456,8 @@ elif solve == 'dynamics':
    ################################### 
    # DEFINIR ALGUNOS HIPERPARAMETROS #
    ################################### 0.0025
-    steps = 10000
-    delta_t = 1e-4
+    steps = 500
+    delta_t = 1e-5
     delta_t2 = delta_t**2
 
    # Calculos
@@ -480,7 +480,7 @@ elif solve == 'dynamics':
         disp = np.load(stored_data)
         for i in range(len(F)):
             d[0,i] = disp[i]
-
+    
 
     #calculos
     Minv = np.linalg.inv(m_glob[np.ix_(r, r)])
@@ -490,7 +490,7 @@ elif solve == 'dynamics':
     #print('a0')
     #print(a)
     #Este seria el d-1
-    d_1 = d[0] - delta_t*v[0] + 0.5*(delta_t2)*a[0]
+    d_1 = ( d[0] - delta_t*v[0] + 0.5*(delta_t2)*a[0] )
     #pdb.set_trace()
     #d1
     #d[1, r] = np.matmul(Minv, 2*np.matmul(m_glob[np.ix_(r, r)], d[0, r])-np.matmul(m_glob[np.ix_(r, r)], d_1[r])+
@@ -498,7 +498,6 @@ elif solve == 'dynamics':
     
     #term = delta_t2*f[0, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)], d[0,r]) - np.matmul(m_glob[np.ix_(r, r)], d_1[r])
     #d[1, r] = np.matmul(Minv,term)
-    
     print('Calculating dynamic position')
     with alive_bar(steps, bar = 'filling', spinner = 'dots_reverse') as bar:
         '''
@@ -508,9 +507,11 @@ elif solve == 'dynamics':
                       delta_t2*(f[i-1, r]-np.matmul(K_glob[np.ix_(r,)], d[i-1,])-np.matmul(m_glob[np.ix_(r, s)], a[i-1, s])))
             bar()
         '''
+
+        
         for i in range(2, steps):
             #term = delta_t2*f[i-1, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)], d[i-1,r]) - np.matmul(m_glob[np.ix_(r, r)], d[i-2, r])
-            d[i, r] = np.matmul(Minv,delta_t2*f[i-1, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)], d[i-1,r]) - np.matmul(m_glob[np.ix_(r, r)], d[i-2, r]))
+            d[i, r] = np.matmul(Minv, delta_t2*f[i-1, r] + np.matmul(2*m_glob[np.ix_(r, r)] - delta_t2*K_glob[np.ix_(r,r)] , d[i-1,r]) - np.matmul(m_glob[np.ix_(r, r)], d[i-2, r]))
             bar()
     print("Solved in %s seconds" % (time.time() - start_time))
     print('Done')

@@ -157,7 +157,7 @@ class finite_elements:
             self.stiff_mat = np.array(stiff_matrix)
             self.long = np.array(longitude)
         elif ElementType == 4:
-            E = 1
+            E = 210e3
             nu = 0.3
             D = np.zeros([6, 6])
             D[0,0], D[1,1], D[2,2] = (1 - nu) * np.array([1, 1, 1])
